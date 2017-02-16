@@ -91,4 +91,4 @@ export type RouterErrorPayload<T> = {
 
 ## How does it compare to @ngrx/router-store?
 
-See #[Comparison to Router-Store][./comparison-to-router-store.md] to compare this library with `@ngrx/router-store.`
+See [Comparison to Router-Store](./comparison-to-router-store.md) to compare this library with `@ngrx/router-store.`
