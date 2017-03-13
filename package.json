@@ -1,0 +1,48 @@
+{
+  "name": "router-store",
+  "version": "0.0.1",
+  "description": "Bindings to connect @angular/router to @ngrx/store",
+  "scripts": {
+    "test": "rm -rf dist && webpack --config webpack.test.config.js && karma start",
+    "e2e": "rm -rf dist && webpack --config webpack.e2e.config.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "TBD"
+  },
+  "authors": [
+    "Victor Savkin"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "rxjs": "^5.0.0-beta.12",
+    "@angular/common": "^4.0.0-rc.3",
+    "@angular/core": "^4.0.0-rc.3",
+    "@angular/router": "^4.0.0-rc.3",
+    "@ngrx/core": "^1.2.0",
+    "@ngrx/store": "^2.0.0"
+  },
+  "devDependencies": {
+    "@angular/common": "^4.0.0-rc.3",
+    "@angular/compiler": "^4.0.0-rc.3",
+    "@angular/compiler-cli": "^4.0.0-rc.3",
+    "@angular/core": "^4.0.0-rc.3",
+    "@angular/platform-browser": "^4.0.0-rc.3",
+    "@angular/platform-browser-dynamic": "^4.0.0-rc.3",
+    "@angular/router": "^4.0.0-rc.3",
+    "@ngrx/core": "^1.2.0",
+    "@ngrx/store": "^2.0.0",
+    "@ngtools/webpack": "^1.2.9",
+    "@types/jasmine": "^2.2.33",
+    "@types/node": "^6.0.38",
+    "jasmine-core": "^2.5.2",
+    "karma": "^1.4.0",
+    "karma-chrome-launcher": "^2.0.0",
+    "karma-jasmine": "^1.1.0",
+    "rxjs": "^5.0.0-beta.12",
+    "ts-loader": "^2.0.0",
+    "typescript": "^2.2.0",
+    "webpack": "^2.2.0",
+    "zone.js": "^0.7.6"
+  }
+}
