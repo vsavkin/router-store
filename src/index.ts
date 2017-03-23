@@ -1,10 +1,10 @@
-import {Injectable, ModuleWithProviders, NgModule, Optional} from "@angular/core";
+import { Injectable, ModuleWithProviders, NgModule, Optional } from "@angular/core";
 import {
   ActivatedRouteSnapshot, CanActivateChild, ExtraOptions, RouterModule, RouterStateSnapshot,
   Routes, Router, NavigationCancel, RoutesRecognized, NavigationError
 } from "@angular/router";
-import {Store, StoreModule, provideStore} from "@ngrx/store";
-import {of} from 'rxjs/observable/of';
+import { Store, StoreModule, provideStore } from "@ngrx/store";
+import { of } from 'rxjs/observable/of';
 
 /**
  * An action dispatched when the router navigates.
@@ -47,6 +47,16 @@ export type RouterErrorPayload<T> = {
   event: NavigationError
 };
 
+export type RouterReducerState = { state: RouterStateSnapshot, navigationId: number };
+
+export function routerReducer(state: RouterReducerState, action: any): RouterReducerState {
+  if (action.type === "ROUTER_NAVIGATION" || action.type === "ROUTER_ERROR" || action.type === "ROUTER_CANCEL") {
+    return ({ state: action.payload.routerState, navigationId: action.payload.event.id });
+  } else {
+    return state;
+  }
+}
+
 /**
  * Connects RouterModule with StoreModule.
  *
@@ -76,7 +86,7 @@ export type RouterErrorPayload<T> = {
  *   declarations: [AppCmp, SimpleCmp],
  *   imports: [
  *     BrowserModule,
- *     StoreModule.provideStore(mapOfReducerse),
+ *     StoreModule.provideStore(mapOfReducers),
  *     RouterModule.forRoot([
  *       { path: '', component: SimpleCmp },
  *       { path: 'next', component: SimpleCmp }
@@ -94,6 +104,7 @@ export class StoreRouterConnectingModule {
   private routerState: RouterStateSnapshot = null;
   private storeState: any;
   private lastRoutesRecognized: RoutesRecognized;
+  private lastNavigationId: number = -1;
 
   constructor(private store: Store<any>, private router: Router) {
     this.setUpBeforePreactivationHook();
@@ -105,8 +116,12 @@ export class StoreRouterConnectingModule {
     (<any>this.router).hooks.beforePreactivation = (routerState: RouterStateSnapshot) => {
       this.routerState = routerState;
 
-      const payload = {routerState, event: this.lastRoutesRecognized};
-      this.store.dispatch({ type: ROUTER_NAVIGATION, payload });
+      // is false only when navigation is triggered by navigateIfNeeded
+      if (!this.rollbackIntoPastState(this.storeState)) {
+        const payload = { routerState, event: this.lastRoutesRecognized };
+        this.store.dispatch({ type: ROUTER_NAVIGATION, payload });
+        this.lastNavigationId = this.lastRoutesRecognized.id;
+      }
 
       return of(true);
     };
@@ -115,7 +130,24 @@ export class StoreRouterConnectingModule {
   private setUpStoreStateListener(): void {
     this.store.subscribe(s => {
       this.storeState = s;
+      this.navigateIfNeeded(s);
     });
+  }
+
+  private navigateIfNeeded(storeState: any): void {
+    if (this.rollbackIntoPastState(storeState)) {
+      this.router.navigateByUrl(storeState['routerReducer'].state.url);
+    }
+  }
+
+  /**
+   * Returns true when the navigationId gets smaller. This can only happen if we reset the state
+   * manually via devtools.
+   *
+   * In production, navigationId grows monotonically.
+   */
+  private rollbackIntoPastState(storeState: any): boolean {
+    return (!!storeState['routerReducer']) && storeState['routerReducer'].navigationId < this.lastNavigationId;
   }
 
   private setUpStateRollbackEvents(): void {
@@ -130,13 +162,13 @@ export class StoreRouterConnectingModule {
     });
   }
 
-  private dispatchRouterCancel(event: NavigationCancel): void  {
-    const payload = {routerState: this.routerState, storeState: this.storeState, event};
-    this.store.dispatch({type: ROUTER_CANCEL, payload});
+  private dispatchRouterCancel(event: NavigationCancel): void {
+    const payload = { routerState: this.routerState, storeState: this.storeState, event };
+    this.store.dispatch({ type: ROUTER_CANCEL, payload });
   }
 
-  private dispatchRouterError(event: NavigationError): void  {
-    const payload = {routerState: this.routerState, storeState: this.storeState, event};
-    this.store.dispatch({type: ROUTER_ERROR, payload});
+  private dispatchRouterError(event: NavigationError): void {
+    const payload = { routerState: this.routerState, storeState: this.storeState, event };
+    this.store.dispatch({ type: ROUTER_ERROR, payload });
   }
 }

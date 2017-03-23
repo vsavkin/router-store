@@ -1,9 +1,12 @@
 import { Component, NgModule } from "@angular/core";
 import { BrowserModule } from "@angular/platform-browser";
 import { platformBrowserDynamic } from "@angular/platform-browser-dynamic";
-import { Router, RouterModule } from "@angular/router";
+import { Router, RouterModule, NavigationEnd } from "@angular/router";
 import { Store, StoreModule } from "@ngrx/store";
-import { ROUTER_NAVIGATION, ROUTER_CANCEL, ROUTER_ERROR, StoreRouterConnectingModule } from "../src/index";
+import { ROUTER_NAVIGATION, ROUTER_CANCEL, ROUTER_ERROR, StoreRouterConnectingModule, routerReducer } from "../src/index";
+import 'rxjs/add/operator/filter';
+import 'rxjs/add/operator/first';
+import 'rxjs/add/operator/toPromise';
 
 describe('integration spec', () => {
   beforeEach(() => {
@@ -19,7 +22,7 @@ describe('integration spec', () => {
       }
     };
 
-    const ngModule = createNgModule({ reducer });
+    const ngModule = createNgModule({ reducers: { reducer } });
 
     platformBrowserDynamic().bootstrapModule(ngModule).then(ref => {
       const router: Router = ref.injector.get(Router);
@@ -54,13 +57,13 @@ describe('integration spec', () => {
 
   it("should support preventing navigation", (done) => {
     const reducer = (state: string = "", action: any) => {
-        if (action.type === ROUTER_NAVIGATION && action.payload.routerState.url.toString() === "/next") {
-          throw new Error("You shall not pass!");
-        } else {
-          return state;
-        }
-      };
-    const ngModule = createNgModule({ reducer });
+      if (action.type === ROUTER_NAVIGATION && action.payload.routerState.url.toString() === "/next") {
+        throw new Error("You shall not pass!");
+      } else {
+        return state;
+      }
+    };
+    const ngModule = createNgModule({ reducers: { reducer } });
 
     platformBrowserDynamic().bootstrapModule(ngModule).then(ref => {
       const router: Router = ref.injector.get(Router);
@@ -98,7 +101,7 @@ describe('integration spec', () => {
       }
     };
 
-    const ngModule = createNgModule({reducer, canActivate: () => false});
+    const ngModule = createNgModule({ reducers: { reducer }, canActivate: () => false });
 
     platformBrowserDynamic().bootstrapModule(ngModule).then(ref => {
       const router: Router = ref.injector.get(Router);
@@ -137,7 +140,7 @@ describe('integration spec', () => {
       }
     };
 
-    const ngModule = createNgModule({reducer, canActivate:  () => { throw new Error("BOOM!"); }});
+    const ngModule = createNgModule({ reducers: { reducer }, canActivate: () => { throw new Error("BOOM!"); } });
 
     platformBrowserDynamic().bootstrapModule(ngModule).then(ref => {
       const router: Router = ref.injector.get(Router);
@@ -163,9 +166,63 @@ describe('integration spec', () => {
       });
     });
   });
+
+  it("should call navigateByUrl when resetting state of the routerReducer", (done) => {
+    const reducer = (state: any, action: any) => {
+      const r = routerReducer(state, action);
+      return r && r.state ? ({ url: r.state.url, navigationId: r.navigationId }) : null;
+    };
+
+    const ngModule = createNgModule({ reducers: { routerReducer, reducer } });
+
+    platformBrowserDynamic().bootstrapModule(ngModule).then(ref => {
+      const router = ref.injector.get(Router);
+      const store = ref.injector.get(Store);
+      const log = logOfRouterAndStore(router, store);
+
+      let routerReducerState = null;
+      store.subscribe(state => {
+        if (!routerReducerState) routerReducerState = state.routerReducer;
+      })
+
+      router.navigateByUrl("/").then(() => {
+        log.splice(0);
+        return router.navigateByUrl("next");
+
+      }).then(() => {
+        expect(log).toEqual([
+          { type: 'router', event: 'NavigationStart', url: '/next' },
+          { type: 'router', event: 'RoutesRecognized', url: '/next' },
+          { type: 'store', state: { url: "/next", navigationId: 2 } },
+          { type: 'router', event: 'NavigationEnd', url: '/next' }
+        ]);
+        log.splice(0);
+
+        store.dispatch({
+          type: ROUTER_NAVIGATION,
+          payload: { routerState: routerReducerState.state, event: { id: routerReducerState.navigationId } }
+        });
+
+        return waitForNavigation(router);
+
+      }).then(() => {
+        expect(log).toEqual([
+          { type: 'router', event: 'NavigationStart', url: '/' },
+          { type: 'store', state: { url: "/", navigationId: 1 } }, //restored
+          { type: 'router', event: 'RoutesRecognized', url: '/' },
+          { type: 'router', event: 'NavigationEnd', url: '/' }
+        ]);
+        done();
+      });
+    });
+  });
 });
 
-function createNgModule(opts: { reducer?: Function, canActivate?: Function } = {}) {
+function waitForNavigation(router: Router): Promise<any> {
+  return router.events.filter(e => e instanceof NavigationEnd).first().toPromise();
+}
+
+function createNgModule(opts: { reducers?: any, canActivate?: Function } = {}) {
   @Component({
     selector: 'test-app',
     template: '<router-outlet></router-outlet>'
@@ -183,7 +240,7 @@ function createNgModule(opts: { reducer?: Function, canActivate?: Function } = {
     declarations: [AppCmp, SimpleCmp],
     imports: [
       BrowserModule,
-      StoreModule.provideStore({ reducer: opts.reducer }),
+      StoreModule.provideStore(opts.reducers),
       RouterModule.forRoot([
         { path: '', component: SimpleCmp },
         { path: 'next', component: SimpleCmp, canActivate: ["CanActivateNext"] }
