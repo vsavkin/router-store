@@ -104,7 +104,9 @@ export class StoreRouterConnectingModule {
   private routerState: RouterStateSnapshot = null;
   private storeState: any;
   private lastRoutesRecognized: RoutesRecognized;
-  private lastNavigationId: number = -1;
+
+  private dispatchTriggeredfByRouter: boolean = false; // used only in dev mode in combination with routerReducer
+  private navigationTriggeredByDispatch: boolean = false; // used only in dev mode in combination with routerReducer
 
   constructor(private store: Store<any>, private router: Router) {
     this.setUpBeforePreactivationHook();
@@ -115,14 +117,7 @@ export class StoreRouterConnectingModule {
   private setUpBeforePreactivationHook(): void {
     (<any>this.router).hooks.beforePreactivation = (routerState: RouterStateSnapshot) => {
       this.routerState = routerState;
-
-      // is false only when navigation is triggered by navigateIfNeeded
-      if (!this.rollbackIntoPastState(this.storeState)) {
-        const payload = { routerState, event: this.lastRoutesRecognized };
-        this.store.dispatch({ type: ROUTER_NAVIGATION, payload });
-        this.lastNavigationId = this.lastRoutesRecognized.id;
-      }
-
+      if (this.shouldDispatch()) this.dispatchEvent();
       return of(true);
     };
   }
@@ -130,24 +125,34 @@ export class StoreRouterConnectingModule {
   private setUpStoreStateListener(): void {
     this.store.subscribe(s => {
       this.storeState = s;
-      this.navigateIfNeeded(s);
+      this.navigateIfNeeded();
     });
   }
 
-  private navigateIfNeeded(storeState: any): void {
-    if (this.rollbackIntoPastState(storeState)) {
-      this.router.navigateByUrl(storeState['routerReducer'].state.url);
+  private dispatchEvent(): void {
+    this.dispatchTriggeredfByRouter = true;
+    try {
+      const payload = { routerState: this.routerState, event: this.lastRoutesRecognized };
+      this.store.dispatch({ type: ROUTER_NAVIGATION, payload });
+    } finally {
+      this.dispatchTriggeredfByRouter = false;
+      this.navigationTriggeredByDispatch = false;
     }
   }
 
-  /**
-   * Returns true when the navigationId gets smaller. This can only happen if we reset the state
-   * manually via devtools.
-   *
-   * In production, navigationId grows monotonically.
-   */
-  private rollbackIntoPastState(storeState: any): boolean {
-    return (!!storeState['routerReducer']) && storeState['routerReducer'].navigationId < this.lastNavigationId;
+  private shouldDispatch(): boolean {
+    if (!this.storeState['routerReducer']) return true;
+    return !this.navigationTriggeredByDispatch;
+  }
+
+  private navigateIfNeeded(): void {
+    if (!this.storeState['routerReducer']) return;
+    if (this.dispatchTriggeredfByRouter) return;
+
+    if (this.router.url !== this.storeState['routerReducer'].state.url) {
+      this.navigationTriggeredByDispatch = true;
+      this.router.navigateByUrl(this.storeState['routerReducer'].state.url);
+    }
   }
 
   private setUpStateRollbackEvents(): void {

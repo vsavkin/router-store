@@ -180,10 +180,12 @@ describe('integration spec', () => {
       const store = ref.injector.get(Store);
       const log = logOfRouterAndStore(router, store);
 
-      let routerReducerState = null;
+      const routerReducerStates = [];
       store.subscribe(state => {
-        if (!routerReducerState) routerReducerState = state.routerReducer;
-      })
+        if (state.routerReducer) {
+          routerReducerStates.push(state.routerReducer);
+        }
+      });
 
       router.navigateByUrl("/").then(() => {
         log.splice(0);
@@ -200,9 +202,8 @@ describe('integration spec', () => {
 
         store.dispatch({
           type: ROUTER_NAVIGATION,
-          payload: { routerState: routerReducerState.state, event: { id: routerReducerState.navigationId } }
+          payload: { routerState: routerReducerStates[0].state, event: { id: routerReducerStates[0].navigationId } }
         });
-
         return waitForNavigation(router);
 
       }).then(() => {
@@ -211,6 +212,22 @@ describe('integration spec', () => {
           { type: 'store', state: { url: "/", navigationId: 1 } }, //restored
           { type: 'router', event: 'RoutesRecognized', url: '/' },
           { type: 'router', event: 'NavigationEnd', url: '/' }
+        ]);
+        log.splice(0);
+
+      }).then(() => {
+        store.dispatch({
+          type: ROUTER_NAVIGATION,
+          payload: { routerState: routerReducerStates[1].state, event: { id: routerReducerStates[1].navigationId } }
+        });
+        return waitForNavigation(router);
+
+      }).then(() => {
+        expect(log).toEqual([
+          { type: 'store', state: { url: "/next", navigationId: 2 } }, //restored
+          { type: 'router', event: 'NavigationStart', url: '/next' },
+          { type: 'router', event: 'RoutesRecognized', url: '/next' },
+          { type: 'router', event: 'NavigationEnd', url: '/next' }
         ]);
         done();
       });
