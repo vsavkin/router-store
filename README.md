@@ -1,5 +1,9 @@
 # StoreRouterConnectingModule
 
+## MOVED
+
+The development of this project moved to https://github.com/ngrx/platform.
+
 
 StoreRouterConnectingModule connects RouterModule with StoreModule.
 
